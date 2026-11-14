@@ -247,3 +247,122 @@ pytest tests/ -v
 ```
 
 All 42 automated tests (including structural sanity tests, rule engine tests for R1-R8, boundaries, priorities, Stage 3 lifecycle/persistence tests, Stage 4 coursework scenario tests, and Stage 5 app smoke tests) run locally and deterministically.
+
+---
+
+## 9. How to Demonstrate the Prototype
+
+This section provides a step-by-step walkthrough for demonstrating the prototype during screen recording or live presentation.
+
+### Step 1 — Start the Streamlit Application
+
+```bash
+streamlit run app.py
+```
+
+The dashboard opens automatically at `http://localhost:8501`. The main screen displays:
+- Student Enrolment Number: **PGD202565745**
+- Assigned Business Domain: **Banking**
+- Reference Institution: **Capital One** (background context only)
+- Academic prototype disclaimer
+
+---
+
+### Step 2 — Register an AI Agent
+
+1. Click the **"Agent Registration"** tab.
+2. Enter a **Customer ID** (e.g., `CUST001`) and an **Agent Name** (e.g., `BankBot`).
+3. Click **Register Agent**.
+4. Confirm the confirmation message shows `ACTIVE` status and a UTC registration timestamp.
+
+> The agent is now persisted in `data/gatekeeper.db` and will remain registered across application restarts.
+
+---
+
+### Step 3 — Evaluate a Request
+
+1. Click the **"Evaluate Request"** tab.
+2. Fill in the form:
+   - **Customer ID:** `CUST001`
+   - **Agent Name:** `BankBot`
+   - **Action:** `View Balance`
+   - **Amount:** `0.00`
+   - Leave **Customer Rejection** unchecked
+3. Click **Evaluate**.
+4. The response displays:
+   - **Decision:** `ALLOW`
+   - **Rule:** `R2`
+   - **Reason:** explaining the deterministic rule applied
+
+Try different combinations (e.g., `Transfer Money` / `$600.00`) to observe `BLOCK` (R6) or `ASK CUSTOMER` (R5) outcomes.
+
+---
+
+### Step 4 — Revoke an Agent
+
+1. Click the **"Revoke Agent"** tab.
+2. Enter the same **Customer ID** (`CUST001`) and **Agent Name** (`BankBot`).
+3. Click **Revoke Agent**.
+4. Confirm the message shows `REVOKED` status with a UTC revocation timestamp.
+
+After revocation, return to **Evaluate Request** and submit any action for `BankBot` — the decision will be `BLOCK` / Rule `R7`, regardless of action type or amount.
+
+---
+
+### Step 5 — Check the Audit Trail
+
+1. Click the **"Audit Trail"** tab.
+2. All evaluated requests are listed with:
+   - Date/time (UTC)
+   - Customer ID and Agent name
+   - Action and amount
+   - Decision and triggered Rule ID
+3. Optionally filter by **Customer ID** to narrow results.
+4. Click **Refresh** to reload the latest entries.
+
+> All audit records are append-only and are persisted in `data/gatekeeper.db`.
+
+---
+
+### Step 6 — Run the Six Coursework Verification Scenarios
+
+#### Via the Dashboard (recommended for screen recording)
+
+1. Click the **"Coursework Verification"** tab.
+2. Click **Run All 6 Scenarios**.
+3. The Expected vs Actual table is displayed immediately, showing:
+   - Scenario number and description
+   - Expected Decision and Rule
+   - Actual Decision and Rule
+   - Audit verification result
+   - Overall PASS / FAIL per scenario
+
+#### Via the command line
+
+```bash
+python services/scenario_runner.py
+```
+
+This runs all six scenarios against an isolated temporary database and prints the full Expected vs Actual comparison to the terminal.
+
+---
+
+### Step 7 — Run the Full Automated Test Suite
+
+```bash
+pytest tests/ -v
+```
+
+Expected result:
+```
+42 passed, 0 failed, 0 errors
+```
+
+The suite covers:
+| Test File | Coverage |
+|---|---|
+| `tests/test_structure.py` | Architecture and import sanity (4 tests) |
+| `tests/test_rule_engine.py` | Rule engine R1-R8, boundaries, priority (15 tests) |
+| `tests/test_stage3_pipeline.py` | Agent lifecycle, persistence, audit pipeline (18 tests) |
+| `tests/test_coursework_scenarios.py` | All 6 mandatory coursework scenarios (7 tests) |
+| `tests/test_app_smoke.py` | Streamlit dashboard smoke tests (2 tests) |
