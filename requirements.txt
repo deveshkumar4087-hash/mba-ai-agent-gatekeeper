@@ -1,0 +1,8 @@
+# Core UI Framework
+streamlit>=1.30.0
+
+# Data Validation & Structured Transfer Objects
+pydantic>=2.5.0
+
+# Test Framework
+pytest>=8.0.0
