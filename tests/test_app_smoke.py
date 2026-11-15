@@ -72,3 +72,46 @@ def test_agent_status_fields_after_revocation(tmp_path):
     assert revoked["revoked_at"] is not None
     # revocation must happen at the same second as or after registration
     assert revoked["revoked_at"] >= revoked["registered_at"]
+
+
+def test_audit_trail_decision_filter_in_datastore(tmp_path):
+    """
+    Verify DataStore get_audit_logs properly handles decision filter options
+    (ALLOW, ASK CUSTOMER, BLOCK, ALL) used by the improved Audit Trail dashboard tab.
+    """
+    from services.data_store import DataStore
+    ds = DataStore(tmp_path / "audit_smoke.db")
+
+    ds.save_audit_log({
+        "customer_id": "CUST1",
+        "agent_name": "Bot1",
+        "action": "View Balance",
+        "amount": 0.0,
+        "decision": "ALLOW",
+        "rule_id": "R2",
+        "reason": "Balance read-only",
+    })
+    ds.save_audit_log({
+        "customer_id": "CUST1",
+        "agent_name": "Bot1",
+        "action": "Pay Bill",
+        "amount": 600.0,
+        "decision": "ASK CUSTOMER",
+        "rule_id": "R4",
+        "reason": "Exceeds threshold",
+    })
+    ds.save_audit_log({
+        "customer_id": "CUST1",
+        "agent_name": "GhostBot",
+        "action": "Transfer Money",
+        "amount": 100.0,
+        "decision": "BLOCK",
+        "rule_id": "R1",
+        "reason": "Unknown agent",
+    })
+
+    assert len(ds.get_audit_logs(decision="ALL")) == 3
+    assert len(ds.get_audit_logs(decision="ALLOW")) == 1
+    assert len(ds.get_audit_logs(decision="ASK CUSTOMER")) == 1
+    assert len(ds.get_audit_logs(decision="BLOCK")) == 1
+    assert ds.get_audit_logs(decision="BLOCK")[0]["rule_id"] == "R1"

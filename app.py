@@ -427,28 +427,57 @@ def main() -> None:
         st.header("Persistent Audit Trail & Compliance Log")
         st.caption("Immutable transaction records loaded directly from the persistent SQLite audit_logs table.")
 
-        col_audit_btn, col_audit_filter = st.columns([1, 3])
+        col_audit_btn, col_audit_cust, col_audit_dec = st.columns([1, 2, 2])
         with col_audit_btn:
             refresh_audit = st.button("🔄 Refresh Audit Log", key="btn_refresh_audit")
-        with col_audit_filter:
+        with col_audit_cust:
             filter_cust = st.text_input("Filter by Customer ID (Optional)", value="", key="filter_cust")
+        with col_audit_dec:
+            filter_decision = st.selectbox(
+                "Filter by Decision",
+                options=["ALL", "ALLOW", "ASK CUSTOMER", "BLOCK"],
+                index=0,
+                key="filter_decision",
+                help="Filter audit entries by gatekeeper decision outcome",
+            )
 
         logs = orchestrator.audit_logger.get_logs(
-            customer_id=filter_cust.strip() if filter_cust.strip() else None
+            customer_id=filter_cust.strip() if filter_cust.strip() else None,
+            decision=filter_decision.strip() if filter_decision != "ALL" else None,
         )
 
         if not logs:
             st.info("No audit logs found matching criteria. Submit transactions in Tab 1 to generate audit records.")
         else:
+            # Summary Metrics for rapid demonstration & review
+            m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+            total_count = len(logs)
+            allow_count = sum(1 for log in logs if log.get("decision") == "ALLOW")
+            ask_count = sum(1 for log in logs if log.get("decision") == "ASK CUSTOMER")
+            block_count = sum(1 for log in logs if log.get("decision") == "BLOCK")
+
+            with m_col1:
+                st.metric("Total Records", total_count)
+            with m_col2:
+                st.metric("ALLOW Decisions", allow_count)
+            with m_col3:
+                st.metric("ASK CUSTOMER", ask_count)
+            with m_col4:
+                st.metric("BLOCK Decisions", block_count)
+
             df_logs = pd.DataFrame(logs)
-            # Reorder and rename columns for readability
+            if "amount" in df_logs.columns:
+                df_logs["formatted_amount"] = df_logs["amount"].apply(lambda a: f"${float(a):.2f}")
+            else:
+                df_logs["formatted_amount"] = "$0.00"
+
             cols_order = [
                 "audit_id",
                 "timestamp",
                 "customer_id",
                 "agent_name",
                 "action",
-                "amount",
+                "formatted_amount",
                 "decision",
                 "rule_id",
                 "reason",
@@ -456,18 +485,22 @@ def main() -> None:
             available_cols = [c for c in cols_order if c in df_logs.columns]
             df_display = df_logs[available_cols].rename(columns={
                 "audit_id": "ID",
-                "timestamp": "Timestamp (UTC)",
-                "customer_id": "Customer",
-                "agent_name": "Agent",
+                "timestamp": "Timestamp",
+                "customer_id": "Customer ID",
+                "agent_name": "Agent Name",
                 "action": "Action",
-                "amount": "Amount ($)",
+                "formatted_amount": "Amount",
                 "decision": "Decision",
-                "rule_id": "Rule",
-                "reason": "Business Reason",
+                "rule_id": "Rule ID",
+                "reason": "Reason",
             })
 
             st.dataframe(df_display, use_container_width=True)
-            st.caption(f"Displaying {len(df_display)} persistent audit log entries from SQLite storage.")
+            st.caption(
+                f"Displaying {len(df_display)} persistent audit log entries from SQLite storage. "
+                "Note: Unknown agent requests (Rule R1) and revoked agent requests (Rule R7) "
+                "are permanently retained in the audit trail for forensic traceability and compliance."
+            )
 
 
 if __name__ == "__main__":

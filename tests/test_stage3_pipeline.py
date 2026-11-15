@@ -290,3 +290,72 @@ def test_validation_negative_amount(orchestrator: GatekeeperOrchestrator):
             action="Pay Bill",
             amount=-50.0,
         )
+
+
+def test_audit_log_filtering_by_decision(orchestrator: GatekeeperOrchestrator):
+    """
+    Verify persistent audit log query filtering by decision (ALLOW, ASK CUSTOMER, BLOCK, ALL),
+    ensuring both unknown-agent (R1) and revoked-agent (R7) decisions are recorded and retrievable.
+    """
+    cust_id = "CUST_AUDIT_FILTER"
+    # 1. ALLOW (R2: active agent view balance)
+    orchestrator.register_agent(customer_id=cust_id, agent_name="ActiveBot")
+    orchestrator.evaluate_request(customer_id=cust_id, agent_name="ActiveBot", action="View Balance", amount=0.0)
+
+    # 2. ASK CUSTOMER (R4: active agent bill pay > $500)
+    orchestrator.evaluate_request(customer_id=cust_id, agent_name="ActiveBot", action="Pay Bill", amount=750.0)
+
+    # 3. BLOCK via Revoked Agent (R7)
+    orchestrator.register_agent(customer_id=cust_id, agent_name="RevokedBot")
+    orchestrator.revoke_agent(customer_id=cust_id, agent_name="RevokedBot", reason="Compromised credentials")
+    orchestrator.evaluate_request(customer_id=cust_id, agent_name="RevokedBot", action="Pay Bill", amount=50.0)
+
+    # 4. BLOCK via Unknown Agent (R1)
+    orchestrator.evaluate_request(customer_id=cust_id, agent_name="UnknownGhostBot", action="Transfer Money", amount=20.0)
+
+    # Test ALL filter
+    all_logs = orchestrator.audit_logger.get_logs(customer_id=cust_id, decision="ALL")
+    assert len(all_logs) == 4
+
+    # Test ALLOW filter
+    allow_logs = orchestrator.audit_logger.get_logs(customer_id=cust_id, decision="ALLOW")
+    assert len(allow_logs) == 1
+    assert allow_logs[0]["decision"] == "ALLOW"
+    assert allow_logs[0]["rule_id"] == "R2"
+
+    # Test ASK CUSTOMER filter
+    ask_logs = orchestrator.audit_logger.get_logs(customer_id=cust_id, decision="ASK CUSTOMER")
+    assert len(ask_logs) == 1
+    assert ask_logs[0]["decision"] == "ASK CUSTOMER"
+    assert ask_logs[0]["rule_id"] == "R4"
+
+    # Test BLOCK filter: must include BOTH revoked-agent (R7) and unknown-agent (R1)
+    block_logs = orchestrator.audit_logger.get_logs(customer_id=cust_id, decision="BLOCK")
+    assert len(block_logs) == 2
+    block_rules = {log["rule_id"] for log in block_logs}
+    assert "R7" in block_rules
+    assert "R1" in block_rules
+
+
+def test_audit_log_filtering_combined_customer_and_decision(orchestrator: GatekeeperOrchestrator):
+    """Verify combining customer_id filter with decision filter isolates matching audit entries."""
+    orchestrator.register_agent(customer_id="CUST_X", agent_name="BotX")
+    orchestrator.register_agent(customer_id="CUST_Y", agent_name="BotY")
+
+    orchestrator.evaluate_request(customer_id="CUST_X", agent_name="BotX", action="View Balance", amount=0.0)
+    orchestrator.evaluate_request(customer_id="CUST_Y", agent_name="BotY", action="View Balance", amount=0.0)
+    orchestrator.evaluate_request(customer_id="CUST_X", agent_name="BotX", action="Pay Bill", amount=900.0)
+
+    # Customer X + ALLOW -> 1
+    x_allow = orchestrator.audit_logger.get_logs(customer_id="CUST_X", decision="ALLOW")
+    assert len(x_allow) == 1
+    assert x_allow[0]["customer_id"] == "CUST_X"
+
+    # Customer X + ASK CUSTOMER -> 1
+    x_ask = orchestrator.audit_logger.get_logs(customer_id="CUST_X", decision="ASK CUSTOMER")
+    assert len(x_ask) == 1
+    assert x_ask[0]["customer_id"] == "CUST_X"
+
+    # Customer Y + ASK CUSTOMER -> 0
+    y_ask = orchestrator.audit_logger.get_logs(customer_id="CUST_Y", decision="ASK CUSTOMER")
+    assert len(y_ask) == 0

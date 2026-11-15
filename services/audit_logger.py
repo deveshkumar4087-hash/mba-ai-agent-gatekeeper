@@ -84,6 +84,10 @@ class AuditLogger:
         self._memory_logs.append(saved)
         return saved
 
-    def get_logs(self, customer_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Retrieve persistent audit records."""
-        return self.data_store.get_audit_logs(customer_id=customer_id)
+    def get_logs(
+        self,
+        customer_id: Optional[str] = None,
+        decision: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve persistent audit records with optional customer and decision filters."""
+        return self.data_store.get_audit_logs(customer_id=customer_id, decision=decision)

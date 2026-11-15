@@ -290,16 +290,23 @@ class DataStore:
     def get_audit_logs(
         self,
         customer_id: Optional[str] = None,
+        decision: Optional[str] = None,
         limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """Retrieve historical audit records sorted chronologically."""
+        """Retrieve historical audit records sorted chronologically with optional filters."""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             query = "SELECT * FROM audit_logs"
+            conditions: List[str] = []
             params: list = []
-            if customer_id:
-                query += " WHERE customer_id = ?"
+            if customer_id and customer_id.strip():
+                conditions.append("customer_id = ?")
                 params.append(customer_id.strip())
+            if decision and decision.strip() and decision.strip().upper() != "ALL":
+                conditions.append("decision = ?")
+                params.append(decision.strip().upper())
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
             query += " ORDER BY audit_id ASC"
             if limit:
                 query += " LIMIT ?"

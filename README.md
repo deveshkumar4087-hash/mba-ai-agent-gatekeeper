@@ -313,14 +313,16 @@ After revocation, return to **Evaluate Request** and submit any action for `Bank
 
 1. Click the **"Audit Trail"** tab.
 2. All evaluated requests are listed with:
-   - Date/time (UTC)
-   - Customer ID and Agent name
-   - Action and amount
-   - Decision and triggered Rule ID
-3. Optionally filter by **Customer ID** to narrow results.
-4. Click **Refresh** to reload the latest entries.
+   - Timestamp (UTC)
+   - Customer ID and Agent Name
+   - Action and Amount
+   - Decision and Rule ID
+   - Business Reason
+3. Filter by **Decision** (`ALL`, `ALLOW`, `ASK CUSTOMER`, `BLOCK`) or optionally by **Customer ID**.
+4. Review summary metrics for total records and breakdown by decision outcome.
+5. Click **Refresh** to reload the latest entries.
 
-> All audit records are append-only and are persisted in `data/gatekeeper.db`.
+> All audit records (including Rule R1 unknown agent blocks and Rule R7 revoked agent blocks) are append-only and persisted in `data/gatekeeper.db`.
 
 ---
 
