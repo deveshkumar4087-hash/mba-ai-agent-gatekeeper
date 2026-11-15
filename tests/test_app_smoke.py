@@ -36,3 +36,39 @@ def test_app_orchestrator_initialization():
     assert orch.data_store is not None
     assert orch.rule_engine is not None
     assert orch.audit_logger is not None
+
+
+def test_agent_status_fields_active(tmp_path):
+    """
+    Verify that an ACTIVE agent record returned by DataStore contains all fields
+    required by the improved Agent Status tab: customer_id, agent_name, status,
+    registered_at, revoked_at (None when active).
+    Uses an isolated temp-file DB (consistent with Stage 3 test pattern).
+    """
+    from services.data_store import DataStore
+    ds = DataStore(tmp_path / "status_smoke.db")
+    record = ds.register_agent("CUST_STATUS_TEST", "StatusBot", "smoke test")
+
+    assert record["customer_id"] == "CUST_STATUS_TEST"
+    assert record["agent_name"] == "StatusBot"
+    assert record["status"] == "ACTIVE"
+    assert record["registered_at"] is not None
+    assert record["revoked_at"] is None
+
+
+def test_agent_status_fields_after_revocation(tmp_path):
+    """
+    Verify that after revocation the DataStore record exposes both registered_at
+    and revoked_at — the two timestamps shown in the improved Revoke and Status tabs.
+    Uses an isolated temp-file DB (consistent with Stage 3 test pattern).
+    """
+    from services.data_store import DataStore
+    ds = DataStore(tmp_path / "revoke_smoke.db")
+    ds.register_agent("CUST_REV_TEST", "RevokeBot", "smoke test")
+    revoked = ds.revoke_agent("CUST_REV_TEST", "RevokeBot", "testing revocation display")
+
+    assert revoked["status"] == "REVOKED"
+    assert revoked["registered_at"] is not None
+    assert revoked["revoked_at"] is not None
+    # revocation must happen at the same second as or after registration
+    assert revoked["revoked_at"] >= revoked["registered_at"]

@@ -259,14 +259,32 @@ def main() -> None:
                         agent_name=rev_agent_name.strip(),
                         reason=rev_reason.strip(),
                     )
-                    st.warning(
-                        f"Agent '{rev_result['agent_name']}' for customer '{rev_result['customer_id']}' "
-                        f"is now PERMANENTLY REVOKED."
+                    st.error(
+                        f"🚫 Agent **'{rev_result['agent_name']}'** for customer "
+                        f"**'{rev_result['customer_id']}'** is now PERMANENTLY REVOKED."
                     )
-                    st.write(f"**Status:** `{rev_result['status']}`")
-                    st.write(f"**Revocation Timestamp (UTC):** `{rev_result['revoked_at']}`")
-                    st.write(f"**Audit Notes:** {rev_result['notes']}")
-                    st.info("Subsequent transactions from this agent will be permanently blocked under Rule R7.")
+                    st.markdown("---")
+                    # Structured post-revocation status display
+                    rev_col1, rev_col2, rev_col3 = st.columns(3)
+                    with rev_col1:
+                        st.metric(label="Customer ID", value=rev_result["customer_id"])
+                    with rev_col2:
+                        st.metric(label="Agent Name", value=rev_result["agent_name"])
+                    with rev_col3:
+                        st.metric(label="Current Status", value=rev_result["status"])
+
+                    ts_col1, ts_col2 = st.columns(2)
+                    with ts_col1:
+                        st.info(f"**Registered At (UTC):** `{rev_result['registered_at']}`")
+                    with ts_col2:
+                        st.info(f"**Revoked At (UTC):** `{rev_result['revoked_at']}`")
+
+                    if rev_result.get("notes"):
+                        st.caption(f"Audit Notes: {rev_result['notes']}")
+                    st.warning(
+                        "⚠️ All subsequent requests from this agent will be permanently "
+                        "**BLOCKED** under Rule **R7** (Revoked Agent), regardless of action type or amount."
+                    )
                 except ValueError as val_err:
                     st.error(f"Revocation Error: {str(val_err)}")
                 except Exception as ex:
@@ -294,21 +312,59 @@ def main() -> None:
                     check_agent_name.strip(),
                 )
                 if not agent_record:
-                    st.error(f"Status: **UNKNOWN** — Agent '{check_agent_name.strip()}' is not registered for '{check_customer_id.strip()}'.")
-                    st.info("Any action by this agent will trigger Rule R1 (BLOCK).")
+                    # UNKNOWN — not in registry
+                    st.markdown("---")
+                    uk_col1, uk_col2, uk_col3 = st.columns(3)
+                    with uk_col1:
+                        st.metric(label="Customer ID", value=check_customer_id.strip())
+                    with uk_col2:
+                        st.metric(label="Agent Name", value=check_agent_name.strip())
+                    with uk_col3:
+                        st.metric(label="Status", value="UNKNOWN")
+                    st.error(
+                        f"Agent **'{check_agent_name.strip()}'** is **not registered** "
+                        f"for customer **'{check_customer_id.strip()}'**."
+                    )
+                    st.info("Any action by this agent will trigger Rule **R1** → Decision: **BLOCK**.")
                 else:
                     status = agent_record["status"]
-                    if status == "ACTIVE":
-                        st.success(f"Status: **ACTIVE** — Agent '{agent_record['agent_name']}' is authorized for '{agent_record['customer_id']}'.")
-                    else:
-                        st.error(f"Status: **REVOKED** — Agent '{agent_record['agent_name']}' authority has been revoked.")
+                    st.markdown("---")
+                    # Top row: Customer ID | Agent Name | Status
+                    s_col1, s_col2, s_col3 = st.columns(3)
+                    with s_col1:
+                        st.metric(label="Customer ID", value=agent_record["customer_id"])
+                    with s_col2:
+                        st.metric(label="Agent Name", value=agent_record["agent_name"])
+                    with s_col3:
+                        st.metric(label="Status", value=status)
 
-                    st.write(f"**Agent ID:** `{agent_record['agent_id']}`")
-                    st.write(f"**Registered At:** `{agent_record['registered_at']}`")
-                    if agent_record.get("revoked_at"):
-                        st.write(f"**Revoked At:** `{agent_record['revoked_at']}`")
+                    # Status banner
+                    if status == "ACTIVE":
+                        st.success(
+                            f"✅ **ACTIVE** — Agent '{agent_record['agent_name']}' is fully authorized "
+                            f"for customer '{agent_record['customer_id']}'."
+                        )
+                    else:
+                        st.error(
+                            f"🚫 **REVOKED** — Agent '{agent_record['agent_name']}' authority has been "
+                            f"permanently revoked. All requests will be BLOCKED (Rule R7)."
+                        )
+
+                    # Timestamps row
+                    ts_col1, ts_col2 = st.columns(2)
+                    with ts_col1:
+                        st.info(f"**Registered At (UTC):** `{agent_record['registered_at']}`")
+                    with ts_col2:
+                        revoked_at = agent_record.get("revoked_at")
+                        if revoked_at:
+                            st.info(f"**Revoked At (UTC):** `{revoked_at}`")
+                        else:
+                            st.info("**Revoked At (UTC):** —  *(not revoked)*")
+
+                    # Notes (if present)
                     if agent_record.get("notes"):
-                        st.write(f"**Notes:** {agent_record['notes']}")
+                        st.caption(f"Notes: {agent_record['notes']}")
+                    st.caption(f"Internal Agent ID: `{agent_record['agent_id']}`")
 
     # -------------------------------------------------------------------------
     # TAB 5: COURSEWORK VERIFICATION (SIX SCENARIOS)
