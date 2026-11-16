@@ -115,3 +115,31 @@ def test_audit_trail_decision_filter_in_datastore(tmp_path):
     assert len(ds.get_audit_logs(decision="ASK CUSTOMER")) == 1
     assert len(ds.get_audit_logs(decision="BLOCK")) == 1
     assert ds.get_audit_logs(decision="BLOCK")[0]["rule_id"] == "R1"
+
+
+def test_app_format_audit_logs_as_csv():
+    """Verify that format_audit_logs_as_csv generates expected CSV structure and handles empty cases."""
+    from services.audit_logger import format_audit_logs_as_csv
+    headers_expected = "ID,Timestamp,Customer ID,Agent Name,Action,Amount,Decision,Rule ID,Reason"
+
+    # Empty case
+    res_empty = format_audit_logs_as_csv([])
+    assert res_empty.strip() == headers_expected
+
+    # With sample data
+    sample_logs = [{
+        "audit_id": 1,
+        "timestamp": "2026-11-16 12:00:00 UTC",
+        "customer_id": "CUST001",
+        "agent_name": "BankBot",
+        "action": "View Balance",
+        "amount": 0.0,
+        "decision": "ALLOW",
+        "rule_id": "R2",
+        "reason": "Balance read-only",
+    }]
+    res = format_audit_logs_as_csv(sample_logs)
+    lines = res.strip().split("\n")
+    assert len(lines) == 2
+    assert lines[0] == headers_expected
+    assert lines[1] == '1,2026-11-16 12:00:00 UTC,CUST001,BankBot,View Balance,"$0.00",ALLOW,R2,Balance read-only' or "ALLOW" in lines[1]

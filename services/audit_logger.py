@@ -12,11 +12,48 @@ Assigned Domain: Banking
 Context: Capital One (Student-designed academic prototype; not official policy).
 """
 
+import csv
+import io
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 from services.data_store import DataStore, get_current_utc_timestamp
 from services.rule_engine import GatekeeperDecision, RuleId
+
+
+def format_audit_logs_as_csv(logs: List[Dict[str, Any]]) -> str:
+    """
+    Format audit log records into standard CSV string.
+    Columns: ID, Timestamp, Customer ID, Agent Name, Action, Amount, Decision, Rule ID, Reason.
+    """
+    headers = [
+        "ID",
+        "Timestamp",
+        "Customer ID",
+        "Agent Name",
+        "Action",
+        "Amount",
+        "Decision",
+        "Rule ID",
+        "Reason",
+    ]
+    output = io.StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(headers)
+    for log in logs:
+        amt = float(log.get("amount", 0.0))
+        writer.writerow([
+            log.get("audit_id", ""),
+            log.get("timestamp", ""),
+            log.get("customer_id", ""),
+            log.get("agent_name", ""),
+            log.get("action", ""),
+            f"${amt:.2f}",
+            log.get("decision", ""),
+            log.get("rule_id", "") or log.get("rule_number", ""),
+            log.get("reason", ""),
+        ])
+    return output.getvalue()
 
 
 class AuditLogger:
@@ -91,3 +128,17 @@ class AuditLogger:
     ) -> List[Dict[str, Any]]:
         """Retrieve persistent audit records with optional customer and decision filters."""
         return self.data_store.get_audit_logs(customer_id=customer_id, decision=decision)
+
+    def export_csv(
+        self,
+        customer_id: Optional[str] = None,
+        decision: Optional[str] = None,
+        logs: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
+        """
+        Export persistent audit records to RFC 4180 compliant CSV format.
+        Uses specified filters or an existing list of log entries.
+        """
+        if logs is None:
+            logs = self.get_logs(customer_id=customer_id, decision=decision)
+        return format_audit_logs_as_csv(logs)

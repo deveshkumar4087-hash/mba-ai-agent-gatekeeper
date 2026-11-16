@@ -359,3 +359,52 @@ def test_audit_log_filtering_combined_customer_and_decision(orchestrator: Gateke
     # Customer Y + ASK CUSTOMER -> 0
     y_ask = orchestrator.audit_logger.get_logs(customer_id="CUST_Y", decision="ASK CUSTOMER")
     assert len(y_ask) == 0
+
+
+def test_audit_trail_csv_export_format(orchestrator: GatekeeperOrchestrator):
+    """
+    Verify audit trail CSV export conforms to the required schema:
+    ID, Timestamp, Customer ID, Agent Name, Action, Amount, Decision, Rule ID, Reason.
+    Verifies filter consistency and RFC 4180 CSV formatting.
+    """
+    cust_id = "CUST_CSV_EXP"
+    orchestrator.register_agent(customer_id=cust_id, agent_name="CsvBot")
+
+    # Evaluate ALLOW
+    orchestrator.evaluate_request(customer_id=cust_id, agent_name="CsvBot", action="View Balance", amount=0.0)
+    # Evaluate ASK CUSTOMER
+    orchestrator.evaluate_request(customer_id=cust_id, agent_name="CsvBot", action="Pay Bill", amount=650.0)
+
+    # 1. Full export for this customer
+    csv_all = orchestrator.export_audit_csv(customer_id=cust_id)
+    lines = [line.strip() for line in csv_all.strip().split("\n")]
+    assert len(lines) == 3  # Header + 2 data rows
+
+    expected_headers = "ID,Timestamp,Customer ID,Agent Name,Action,Amount,Decision,Rule ID,Reason"
+    assert lines[0] == expected_headers
+    assert "View Balance" in lines[1]
+    assert "ALLOW" in lines[1]
+    assert "R2" in lines[1]
+    assert "$0.00" in lines[1]
+    assert "Pay Bill" in lines[2]
+    assert "ASK CUSTOMER" in lines[2]
+    assert "R4" in lines[2]
+    assert "$650.00" in lines[2]
+
+    # 2. Filtered export by decision: ALLOW only
+    csv_allow = orchestrator.export_audit_csv(customer_id=cust_id, decision="ALLOW")
+    allow_lines = [line.strip() for line in csv_allow.strip().split("\n")]
+    assert len(allow_lines) == 2  # Header + 1 row
+    assert "ALLOW" in allow_lines[1]
+    assert "ASK CUSTOMER" not in csv_allow
+
+    # 3. Filtered export by decision: BLOCK (zero matching for this customer)
+    csv_block = orchestrator.export_audit_csv(customer_id=cust_id, decision="BLOCK")
+    block_lines = [line.strip() for line in csv_block.strip().split("\n")]
+    assert len(block_lines) == 1  # Only header row
+    assert block_lines[0] == expected_headers
+
+    # 4. Empty list export returns header row cleanly
+    from services.audit_logger import format_audit_logs_as_csv
+    empty_csv = format_audit_logs_as_csv([])
+    assert empty_csv.strip() == expected_headers

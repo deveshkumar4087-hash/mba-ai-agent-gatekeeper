@@ -130,6 +130,15 @@ class GatekeeperOrchestrator:
             "reason": reason,
         })
 
+    def export_audit_csv(
+        self,
+        customer_id: Optional[str] = None,
+        decision: Optional[str] = None,
+        logs: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
+        """Export persistent audit trail to CSV format using AuditLogger."""
+        return self.audit_logger.export_csv(customer_id=customer_id, decision=decision, logs=logs)
+
     def evaluate_request(
         self,
         customer_id: str,

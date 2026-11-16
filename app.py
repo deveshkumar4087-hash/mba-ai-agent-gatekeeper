@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from orchestrator import GatekeeperOrchestrator, GatekeeperResponse
 from services.scenario_runner import CourseworkScenarioRunner, ScenarioResult
+from services.audit_logger import format_audit_logs_as_csv
 
 # Mandatory Metadata Exports (Required for automated tests & student grading)
 ENROLMENT_NUMBER: str = "PGD202565745"
@@ -448,6 +449,15 @@ def main() -> None:
 
         if not logs:
             st.info("No audit logs found matching criteria. Submit transactions in Tab 1 to generate audit records.")
+            st.download_button(
+                label="📥 Download Audit Trail CSV",
+                data=format_audit_logs_as_csv([]),
+                file_name="audit_trail_empty.csv",
+                mime="text/csv",
+                disabled=True,
+                key="btn_download_empty",
+                help="No matching audit records to export",
+            )
         else:
             # Summary Metrics for rapid demonstration & review
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
@@ -464,6 +474,27 @@ def main() -> None:
                 st.metric("ASK CUSTOMER", ask_count)
             with m_col4:
                 st.metric("BLOCK Decisions", block_count)
+
+            # Audit Trail Export Button and Status
+            csv_data = orchestrator.audit_logger.export_csv(logs=logs)
+            export_col1, export_col2 = st.columns([1, 3])
+            with export_col1:
+                st.download_button(
+                    label="📥 Download Audit Trail CSV",
+                    data=csv_data,
+                    file_name="audit_trail_export.csv",
+                    mime="text/csv",
+                    key="btn_download_audit_csv",
+                    help="Download the filtered audit trail as an RFC 4180 CSV file",
+                )
+            with export_col2:
+                filter_desc = []
+                if filter_cust.strip():
+                    filter_desc.append(f"Customer: '{filter_cust.strip()}'")
+                if filter_decision != "ALL":
+                    filter_desc.append(f"Decision: '{filter_decision}'")
+                applied_filters_text = ", ".join(filter_desc) if filter_desc else "All Records"
+                st.caption(f"Ready to export {total_count} record(s) matching filter: **{applied_filters_text}**.")
 
             df_logs = pd.DataFrame(logs)
             if "amount" in df_logs.columns:
